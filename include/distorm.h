@@ -91,7 +91,7 @@ typedef unsigned __int8		uint8_t;
 #define FLAG_GET_OPSIZE(flags) (((flags) >> 8) & 3)
 #define FLAG_GET_ADDRSIZE(flags) (((flags) >> 10) & 3)
 /* To get the LOCK/REPNZ/REP prefixes. */
-#define FLAG_GET_PREFIX(flags) ((flags) & 7)
+#define FLAG_GET_PREFIX(flags) (((unsigned int)((int16_t)flags)) & 7)
 /* Indicates whether the instruction is privileged. */
 #define FLAG_GET_PRIVILEGED(flags) (((flags) & FLAG_PRIVILEGED_INSTRUCTION) != 0)
 
@@ -252,7 +252,7 @@ typedef struct {
 	uint8_t dispSize;
 	/* Meta defines the instruction set class, and the flow control flags. Use META macros. */
 	uint16_t meta;
-	/* The CPU flags that the instruction operates upon. */
+	/* The CPU flags that the instruction operates upon, set only with DF_FILL_EFLAGS enabled, otherwise 0. */
 	uint16_t modifiedFlagsMask, testedFlagsMask, undefinedFlagsMask;
 } _DInst;
 
@@ -271,11 +271,11 @@ typedef struct {
  * This structure holds all information the disassembler generates per instruction.
  */
 typedef struct {
+	_OffsetType offset; /* Start offset of the decoded instruction. */
+	unsigned int size; /* Size of decoded instruction in bytes. */
 	_WString mnemonic; /* Mnemonic of decoded instruction, prefixed if required by REP, LOCK etc. */
 	_WString operands; /* Operands of the decoded instruction, up to 3 operands, comma-seperated. */
 	_WString instructionHex; /* Hex dump - little endian, including prefixes. */
-	unsigned int size; /* Size of decoded instruction in bytes. */
-	_OffsetType offset; /* Start offset of the decoded instruction. */
 } _DecodedInst;
 
 #endif /* DISTORM_LIGHT */
@@ -390,7 +390,8 @@ typedef struct {
 #define DF_STOP_ON_PRIVILEGED 0x800
 /* The decoder will not synchronize to the next byte after the previosuly decoded instruction, instead it will start decoding at the next byte. */
 #define DF_SINGLE_BYTE_STEP 0x1000
-
+/* The decoder will fill in the eflags fields for the decoded instruction. */
+#define DF_FILL_EFLAGS 0x2000
 /* The decoder will stop and return to the caller when any flow control instruction was decoded. */
 #define DF_STOP_ON_FLOW_CONTROL (DF_STOP_ON_CALL | DF_STOP_ON_RET | DF_STOP_ON_SYS | DF_STOP_ON_UNC_BRANCH | DF_STOP_ON_CND_BRANCH | DF_STOP_ON_INT | DF_STOP_ON_CMOV | DF_STOP_ON_HLT)
 
