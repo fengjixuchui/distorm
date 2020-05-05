@@ -92,6 +92,7 @@ class _WString (Structure):
 class _CodeInfo (Structure):
     _fields_ = [
         ('codeOffset',	_OffsetType),
+        ('addrMask',    _OffsetType),
         ('nextOffset',  _OffsetType),
         ('code',        c_char_p),
         ('codeLen',     c_int),
@@ -165,6 +166,7 @@ class _DInst (Structure):
         ('usedRegistersMask', c_uint32), # used registers mask
         ('opcode', c_uint16),  # look up in opcode table
         ('ops', _Operand*4),
+        ('opsNo', c_ubyte), # number of valid ops
         ('size', c_ubyte),
         ('segment', c_ubyte), # -1 if unused. See C headers for more info
         ('base', c_ubyte),    # base register for indirections
@@ -675,7 +677,7 @@ def DecomposeGenerator(codeOffset, code, dt, features = 0):
     while codeLen > 0:
 
         usedInstructionsCount = c_uint(0)
-        codeInfo = _CodeInfo(_OffsetType(codeOffset), _OffsetType(0), cast(p_code, c_char_p), codeLen, dt, features)
+        codeInfo = _CodeInfo(_OffsetType(codeOffset), _OffsetType(0), _OffsetType(0), cast(p_code, c_char_p), codeLen, dt, features)
         status = internal_decompose(byref(codeInfo), byref(result), MAX_INSTRUCTIONS, byref(usedInstructionsCount))
         if status == DECRES_INPUTERR:
             raise ValueError("Invalid arguments passed to distorm_decode()")

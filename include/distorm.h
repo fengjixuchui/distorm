@@ -1,4 +1,4 @@
-/* diStorm 3.4.2 */
+/* diStorm 3.4.4 */
 
 /*
 distorm.h
@@ -110,7 +110,8 @@ typedef enum { Decode16Bits = 0, Decode32Bits = 1, Decode64Bits = 2 } _DecodeTyp
 typedef OFFSET_INTEGER _OffsetType;
 
 typedef struct {
-	_OffsetType codeOffset, nextOffset; /* nextOffset is OUT only. */
+	_OffsetType codeOffset, addrMask;
+	_OffsetType nextOffset; /* nextOffset is OUT only. */
 	const uint8_t* code;
 	int codeLen; /* Using signed integer makes it easier to detect an underflow. */
 	_DecodeType dt;
@@ -243,6 +244,8 @@ typedef struct {
 	uint16_t opcode;
 	/* Up to four operands per instruction, ignored if ops[n].type == O_NONE. */
 	_Operand ops[OPERANDS_NO];
+	/* Number of valid ops entries. */
+	uint8_t opsNo;
 	/* Size of the whole instruction in bytes. */
 	uint8_t size;
 	/* Segment information of memory indirection, default segment, or overriden one, can be -1. Use SEGMENT macros. */
@@ -303,6 +306,7 @@ typedef struct {
 #define RM_R13 0x80000 /* R13B, R13W, R13D, R13 */
 #define RM_R14 0x100000 /* R14B, R14W, R14D, R14 */
 #define RM_R15 0x200000 /* R15B, R15W, R15D, R15 */
+#define RM_SEG 0x400000 /* CS, SS, DS, ES, FS, GS */
 
 /* RIP should be checked using the 'flags' field and FLAG_RIP_RELATIVE.
  * Segments should be checked using the segment macros.
@@ -392,6 +396,8 @@ typedef struct {
 #define DF_SINGLE_BYTE_STEP 0x1000
 /* The decoder will fill in the eflags fields for the decoded instruction. */
 #define DF_FILL_EFLAGS 0x2000
+/* The decoder will use the addrMask in CodeInfo structure instead of DF_MAXIMUM_ADDR16/32. */
+#define DF_USE_ADDR_MASK 0x4000
 /* The decoder will stop and return to the caller when any flow control instruction was decoded. */
 #define DF_STOP_ON_FLOW_CONTROL (DF_STOP_ON_CALL | DF_STOP_ON_RET | DF_STOP_ON_SYS | DF_STOP_ON_UNC_BRANCH | DF_STOP_ON_CND_BRANCH | DF_STOP_ON_INT | DF_STOP_ON_CMOV | DF_STOP_ON_HLT)
 
