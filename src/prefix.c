@@ -170,77 +170,75 @@ void prefixes_decode(_CodeInfo* ci, _PrefixState* ps)
 
 		/* Examine what type of prefix we got. */
 		byte = *ci->code;
-		/* REX type, 64 bits decoding mode only: */
-		if ((byte >= 0x40) && (byte <= 0x4f)) {
+		switch (byte)
+		{
+		case PREFIX_OP_SIZE: {/* Op Size type: */
+			ps->decodedPrefixes |= INST_PRE_OP_SIZE;
+			prefixes_track_unused(ps, index, PFXIDX_OP_SIZE);
+		} break;
+			/* Look for both common arch prefixes. */
+		case PREFIX_LOCK: {
+			/* LOCK and REPx type: */
+			ps->decodedPrefixes |= INST_PRE_LOCK;
+			prefixes_track_unused(ps, index, PFXIDX_LOREP);
+		} break;
+		case PREFIX_REPNZ: {
+			ps->decodedPrefixes |= INST_PRE_REPNZ;
+			prefixes_track_unused(ps, index, PFXIDX_LOREP);
+		} break;
+		case PREFIX_REP: {
+			ps->decodedPrefixes |= INST_PRE_REP;
+			prefixes_track_unused(ps, index, PFXIDX_LOREP);
+		} break;
+		case PREFIX_CS: {
+			/* Seg Overide type: */
+			ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
+			ps->decodedPrefixes |= INST_PRE_CS;
+			prefixes_track_unused(ps, index, PFXIDX_SEG);
+		} break;
+		case PREFIX_SS: {
+			ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
+			ps->decodedPrefixes |= INST_PRE_SS;
+			prefixes_track_unused(ps, index, PFXIDX_SEG);
+		} break;
+		case PREFIX_DS: {
+			ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
+			ps->decodedPrefixes |= INST_PRE_DS;
+			prefixes_track_unused(ps, index, PFXIDX_SEG);
+		} break;
+		case PREFIX_ES: {
+			ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
+			ps->decodedPrefixes |= INST_PRE_ES;
+			prefixes_track_unused(ps, index, PFXIDX_SEG);
+		} break;
+		case PREFIX_FS: {
+			ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
+			ps->decodedPrefixes |= INST_PRE_FS;
+			prefixes_track_unused(ps, index, PFXIDX_SEG);
+		} break;
+		case PREFIX_GS: {
+			ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
+			ps->decodedPrefixes |= INST_PRE_GS;
+			prefixes_track_unused(ps, index, PFXIDX_SEG);
+		} break;
+		case PREFIX_ADDR_SIZE: {
+			/* Addr Size type: */
+			ps->decodedPrefixes |= INST_PRE_ADDR_SIZE;
+			prefixes_track_unused(ps, index, PFXIDX_ADRS);
+		} break;
+		default:
 			if (ci->dt == Decode64Bits) {
-				ps->decodedPrefixes |= INST_PRE_REX;
-				rexPos = ci->code;
-				ps->vrex = byte & 0xf; /* Keep only BXRW. */
-				ps->prefixExtType = PET_REX;
-				prefixes_track_unused(ps, index, PFXIDX_REX);
+				/* REX type, 64 bits decoding mode only: */
+				if ((byte & 0xf0) == 0x40) {
+					ps->decodedPrefixes |= INST_PRE_REX;
+					rexPos = ci->code;
+					ps->vrex = byte & 0xf; /* Keep only BXRW. */
+					ps->prefixExtType = PET_REX;
+					prefixes_track_unused(ps, index, PFXIDX_REX);
+					continue;
+				}
 			}
-			else break; /* If we are not in 64 bits mode, it's an instruction, then halt. */
-		}
-		else {
-			switch (byte)
-			{
-			case PREFIX_OP_SIZE: {/* Op Size type: */
-				ps->decodedPrefixes |= INST_PRE_OP_SIZE;
-				prefixes_track_unused(ps, index, PFXIDX_OP_SIZE);
-			} break;
-				/* Look for both common arch prefixes. */
-			case PREFIX_LOCK: {
-				/* LOCK and REPx type: */
-				ps->decodedPrefixes |= INST_PRE_LOCK;
-				prefixes_track_unused(ps, index, PFXIDX_LOREP);
-			} break;
-			case PREFIX_REPNZ: {
-				ps->decodedPrefixes |= INST_PRE_REPNZ;
-				prefixes_track_unused(ps, index, PFXIDX_LOREP);
-			} break;
-			case PREFIX_REP: {
-				ps->decodedPrefixes |= INST_PRE_REP;
-				prefixes_track_unused(ps, index, PFXIDX_LOREP);
-			} break;
-			case PREFIX_CS: {
-				/* Seg Overide type: */
-				ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
-				ps->decodedPrefixes |= INST_PRE_CS;
-				prefixes_track_unused(ps, index, PFXIDX_SEG);
-			} break;
-			case PREFIX_SS: {
-				ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
-				ps->decodedPrefixes |= INST_PRE_SS;
-				prefixes_track_unused(ps, index, PFXIDX_SEG);
-			} break;
-			case PREFIX_DS: {
-				ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
-				ps->decodedPrefixes |= INST_PRE_DS;
-				prefixes_track_unused(ps, index, PFXIDX_SEG);
-			} break;
-			case PREFIX_ES: {
-				ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
-				ps->decodedPrefixes |= INST_PRE_ES;
-				prefixes_track_unused(ps, index, PFXIDX_SEG);
-			} break;
-			case PREFIX_FS: {
-				ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
-				ps->decodedPrefixes |= INST_PRE_FS;
-				prefixes_track_unused(ps, index, PFXIDX_SEG);
-			} break;
-			case PREFIX_GS: {
-				ps->decodedPrefixes &= ~INST_PRE_SEGOVRD_MASK;
-				ps->decodedPrefixes |= INST_PRE_GS;
-				prefixes_track_unused(ps, index, PFXIDX_SEG);
-			} break;
-			case PREFIX_ADDR_SIZE: {
-				/* Addr Size type: */
-				ps->decodedPrefixes |= INST_PRE_ADDR_SIZE;
-				prefixes_track_unused(ps, index, PFXIDX_ADRS);
-			} break;
-			default:
-				goto _Break2;
-			}
+			goto _Break2;
 		}
 	}
 _Break2:
@@ -349,28 +347,34 @@ _Break2:
 void prefixes_use_segment(_iflags defaultSeg, _PrefixState* ps, _DecodeType dt, _DInst* di)
 {
 	/* Extract given segment prefix from the decoded prefixes. */
-	_iflags flags = ps->decodedPrefixes & INST_PRE_SEGOVRD_MASK;
+	_iflags flags;
+
+	if (dt == Decode64Bits) {
+		if (ps->decodedPrefixes & INST_PRE_SEGOVRD_MASK64) { /* Either GS or FS. */
+			di->segment = ps->decodedPrefixes & INST_PRE_GS ? R_GS : R_FS;
+		}
+
+		return;
+	}
+
+	flags = ps->decodedPrefixes & INST_PRE_SEGOVRD_MASK;
 
 	/* Use the given prefix only if it's not the default. */
 	if (flags && (flags != defaultSeg)) {
-		di->segment = 0;
 		ps->usedPrefixes |= flags;
+
+		switch (flags >> 7) /* INST_PRE_CS is 1 << 7. And the rest of the prefixes follow as bit fields. */
+		{
+			case 1: di->segment = R_CS; break;
+			case 2: di->segment = R_SS; break;
+			case 4: di->segment = R_DS; break;
+			case 8: di->segment = R_ES; break;
+			case 0x10: di->segment = R_FS; break;
+			case 0x20: di->segment = R_GS; break;
+		}
 	}
 	else {
-		flags = defaultSeg;
-		di->segment = SEGMENT_DEFAULT;
+		if (defaultSeg == INST_PRE_SS) di->segment = SEGMENT_DEFAULT | R_SS;
+		else di->segment = SEGMENT_DEFAULT | R_DS;
 	}
-
-	switch (flags >> 7) /* INST_PRE_CS is 1 << 7. And the rest of the prefixes follow as bit fields. */
-	{
-		case 1: di->segment |= R_CS; break;
-		case 2: di->segment |= R_SS; break;
-		case 4: di->segment |= R_DS; break;
-		case 8: di->segment |= R_ES; break;
-		case 0x10: di->segment |= R_FS; break;
-		case 0x20: di->segment |= R_GS; break;
-	}
-
-	/* If it's one of the CS,SS,DS,ES and the mode is 64 bits, set segment it to none, since it's ignored. */
-	if ((dt == Decode64Bits) && (flags & INST_PRE_SEGOVRD_MASK32)) di->segment = R_NONE;
 }
