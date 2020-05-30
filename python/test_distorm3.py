@@ -782,6 +782,7 @@ class TestMode64(unittest.TestCase):
 		I64("add rax, 0x100").check_reg(0, Regs.RAX, 64)
 	def test_acc_full_not64(self):
 		I64("out 0x64, eax").check_reg(1, Regs.EAX, 32)
+		I64("db 0x48\nout 0x64, eax").check_reg(1, Regs.EAX, 32)
 	def test_mem16_full(self):
 		I64("call far [rbp]").check_simple_deref(0, Regs.RBP, 32)
 		I64("db 0x48\n call far [rbp]").check_simple_deref(0, Regs.RBP, 64)
@@ -1524,6 +1525,9 @@ class TestMisc2(unittest.TestCase):
 		insts = IB64(data).insts
 		output = "".join([_hexlify(i.instructionBytes) for i in insts])
 		self.assertTrue(data == output)
+	def test_longest_mnemonic(self):
+		# The longest mnemonic is VAESKEYGENASSIST and check it's null terminated.
+		self.assertEqual(I32("VAESKEYGENASSIST xmm1, xmm2, 7").inst.mnemonic, "VAESKEYGENASSIST")
 
 class TestPrefixes(unittest.TestCase):
 	Derefs16 = ["BX + SI", "BX + DI", "BP + SI", "BP + DI", "SI", "DI", "BP", "BX"]
@@ -1601,7 +1605,7 @@ class TestPrefixes(unittest.TestCase):
 	def test_rep(self):
 		self.assertFalse("FLAG_REP" not in I32("rep movsb").inst.flags)
 	def test_reps(self):
-		"""scas and cmps have different repZ prefix"""
+		""" Scas and cmps have different repZ prefix. """
 		self.assertTrue(str(I32("rep scasb").inst).find("REPZ") != -1)
 		self.assertTrue(str(I32("rep cmpsd").inst).find("REPZ") != -1)
 		self.assertTrue(str(I32("rep stosb").inst).find("REP") != -1)
@@ -1609,6 +1613,218 @@ class TestPrefixes(unittest.TestCase):
 		self.assertTrue(str(I16("repnz scasb").inst).find("REPNZ") != -1)
 		self.assertTrue(str(I32("repnz cmpsd").inst).find("REPNZ") != -1)
 		self.assertTrue(str(I64("repnz stosb").inst).find("REPNZ") != -1)
+	def test_stos(self):
+		""" STOS instruction is treated specially with certain prefixes, check all such cases. """
+		# 16 bits
+		self.assertEqual(str(IB16("aa").inst), "STOSB")
+		self.assertEqual(str(IB16("ab").inst), "STOSW")
+		self.assertEqual(str(IB16("66ab").inst), "STOSD")
+		self.assertEqual(str(IB16("67ab").inst), "STOS [EDI], AX")
+		self.assertEqual(str(IB16("6766ab").inst), "STOS [EDI], EAX")
+		self.assertEqual(str(IB16("2eab").inst), "STOSW") # 1st op cannot be prefixed by segment!
+		self.assertEqual(str(IB16("f3ab").inst), "REP STOSW")
+		self.assertEqual(str(IB16("f2ab").inst), "REPNZ STOSW")
+		# 32 bits
+		self.assertEqual(str(IB32("aa").inst), "STOSB")
+		self.assertEqual(str(IB32("ab").inst), "STOSD")
+		self.assertEqual(str(IB32("66ab").inst), "STOSW")
+		self.assertEqual(str(IB32("67ab").inst), "STOS [DI], EAX")
+		self.assertEqual(str(IB32("6766ab").inst), "STOS [DI], AX")
+		self.assertEqual(str(IB32("2eab").inst), "STOSD") # 1st op cannot be prefixed by segment!
+		self.assertEqual(str(IB32("f3ab").inst), "REP STOSD")
+		self.assertEqual(str(IB32("f2ab").inst), "REPNZ STOSD")
+		# 64 bits
+		self.assertEqual(str(IB64("aa").inst), "STOSB")
+		self.assertEqual(str(IB64("ab").inst), "STOSD")
+		self.assertEqual(str(IB64("48ab").inst), "STOSQ")
+		self.assertEqual(str(IB64("66ab").inst), "STOSW")
+		self.assertEqual(str(IB64("67ab").inst), "STOS [EDI], EAX")
+		self.assertEqual(str(IB64("6766ab").inst), "STOS [EDI], AX")
+		self.assertEqual(str(IB64("2eab").inst), "STOSD") # 1st op cannot be prefixed by segment!
+		self.assertEqual(str(IB64("2e48ab").inst), "STOSQ") # 1st op cannot be prefixed by segment!
+		self.assertEqual(str(IB64("f3ab").inst), "REP STOSD")
+		self.assertEqual(str(IB64("f348ab").inst), "REP STOSQ")
+		self.assertEqual(str(IB64("f2ab").inst), "REPNZ STOSD")
+		self.assertEqual(str(IB64("f248ab").inst), "REPNZ STOSQ")
+	def test_scas(self):
+		""" SCAS instruction is treated specially with certain prefixes, check all such cases. """
+		# 16 bits
+		self.assertEqual(str(IB16("ae").inst), "SCASB")
+		self.assertEqual(str(IB16("af").inst), "SCASW")
+		self.assertEqual(str(IB16("66af").inst), "SCASD")
+		self.assertEqual(str(IB16("67af").inst), "SCAS [EDI], AX")
+		self.assertEqual(str(IB16("6766af").inst), "SCAS [EDI], EAX")
+		self.assertEqual(str(IB16("2eaf").inst), "SCASW") # 1st op cannot be prefixed by segment!
+		self.assertEqual(str(IB16("f3af").inst), "REPZ SCASW")
+		self.assertEqual(str(IB16("f2af").inst), "REPNZ SCASW")
+		# 32 bits
+		self.assertEqual(str(IB32("ae").inst), "SCASB")
+		self.assertEqual(str(IB32("af").inst), "SCASD")
+		self.assertEqual(str(IB32("66af").inst), "SCASW")
+		self.assertEqual(str(IB32("67af").inst), "SCAS [DI], EAX")
+		self.assertEqual(str(IB32("6766af").inst), "SCAS [DI], AX")
+		self.assertEqual(str(IB32("2eaf").inst), "SCASD") # 1st op cannot be prefixed by segment!
+		self.assertEqual(str(IB32("f3af").inst), "REPZ SCASD")
+		self.assertEqual(str(IB32("f2af").inst), "REPNZ SCASD")
+		# 64 bits
+		self.assertEqual(str(IB64("ae").inst), "SCASB")
+		self.assertEqual(str(IB64("af").inst), "SCASD")
+		self.assertEqual(str(IB64("48af").inst), "SCASQ")
+		self.assertEqual(str(IB64("66af").inst), "SCASW")
+		self.assertEqual(str(IB64("67af").inst), "SCAS [EDI], EAX")
+		self.assertEqual(str(IB64("6766af").inst), "SCAS [EDI], AX")
+		self.assertEqual(str(IB64("2eaf").inst), "SCASD") # 1st op cannot be prefixed by segment!
+		self.assertEqual(str(IB64("2e48af").inst), "SCASQ") # 1st op cannot be prefixed by segment!
+		self.assertEqual(str(IB64("f3af").inst), "REPZ SCASD")
+		self.assertEqual(str(IB64("f348af").inst), "REPZ SCASQ")
+		self.assertEqual(str(IB64("f2af").inst), "REPNZ SCASD")
+		self.assertEqual(str(IB64("f248af").inst), "REPNZ SCASQ")
+	def test_lods(self):
+		""" LODS instruction is treated specially with certain prefixes, check all such cases. """
+		# 16 bits
+		self.assertEqual(str(IB16("ac").inst), "LODSB")
+		self.assertEqual(str(IB16("ad").inst), "LODSW")
+		self.assertEqual(str(IB16("66ad").inst), "LODSD")
+		self.assertEqual(str(IB16("67ad").inst), "LODS AX, [ESI]")
+		self.assertEqual(str(IB16("6766ad").inst), "LODS EAX, [ESI]")
+		self.assertEqual(str(IB16("64ad").inst), "LODS AX, [FS:SI]")
+		self.assertEqual(str(IB16("f364ad").inst), "REP LODS AX, [FS:SI]")
+		self.assertEqual(str(IB16("f264ad").inst), "REPNZ LODS AX, [FS:SI]")
+		# 32 bits
+		self.assertEqual(str(IB32("ac").inst), "LODSB")
+		self.assertEqual(str(IB32("66ad").inst), "LODSW")
+		self.assertEqual(str(IB32("ad").inst), "LODSD")
+		self.assertEqual(str(IB32("f3ac").inst), "REP LODSB")
+		self.assertEqual(str(IB32("66f3ad").inst), "REP LODSW")
+		self.assertEqual(str(IB32("f3ad").inst), "REP LODSD")
+		self.assertEqual(str(IB32("65ad").inst), "LODS EAX, [GS:ESI]")
+		self.assertEqual(str(IB32("f365ad").inst), "REP LODS EAX, [GS:ESI]")
+		self.assertEqual(str(IB32("f36567ad").inst), "REP LODS EAX, [GS:SI]")
+		self.assertEqual(str(IB32("f3656766ad").inst), "REP LODS AX, [GS:SI]")
+		self.assertEqual(str(IB32("6667f365ad").inst), "REP LODS AX, [GS:SI]")
+		self.assertEqual(str(IB32("67f3ac").inst), "REP LODS AL, [SI]")
+		self.assertEqual(str(IB32("67f2ac").inst), "REPNZ LODS AL, [SI]")
+		# 64 bits
+		self.assertEqual(str(IB64("ac").inst), "LODSB")
+		self.assertEqual(str(IB64("66ad").inst), "LODSW")
+		self.assertEqual(str(IB64("ad").inst), "LODSD")
+		self.assertEqual(str(IB64("48ad").inst), "LODSQ")
+		self.assertEqual(str(IB64("f3ac").inst), "REP LODSB")
+		self.assertEqual(str(IB64("66f3ad").inst), "REP LODSW")
+		self.assertEqual(str(IB64("f3ad").inst), "REP LODSD")
+		self.assertEqual(str(IB64("65ad").inst), "LODS EAX, [GS:RSI]")
+		self.assertEqual(str(IB64("f365ad").inst), "REP LODS EAX, [GS:RSI]")
+		self.assertEqual(str(IB64("f36567ad").inst), "REP LODS EAX, [GS:ESI]")
+		self.assertEqual(str(IB64("f3656766ad").inst), "REP LODS AX, [GS:ESI]")
+		self.assertEqual(str(IB64("6667f365ad").inst), "REP LODS AX, [GS:ESI]")
+		self.assertEqual(str(IB64("6667f265ad").inst), "REPNZ LODS AX, [GS:ESI]")
+		self.assertEqual(str(IB64("67f3ac").inst), "REP LODS AL, [ESI]")
+	def test_movs(self):
+		""" MOVS instruction is treated specially with certain prefixes, check all such cases. """
+		# 16 bits
+		self.assertEqual(str(IB16("a4").inst), "MOVSB")
+		self.assertEqual(str(IB16("66a5").inst), "MOVSD")
+		self.assertEqual(str(IB16("a5").inst), "MOVSW")
+		self.assertEqual(str(IB16("f3a5").inst), "REP MOVSW")
+		self.assertEqual(str(IB16("66f3a5").inst), "REP MOVSD")
+		self.assertEqual(str(IB16("f366a5").inst), "REP MOVSD")
+		self.assertEqual(str(IB16("f3a5").inst), "REP MOVSW")
+		self.assertEqual(str(IB16("65a5").inst), "MOVS WORD [ES:DI], [GS:SI]")
+		self.assertEqual(str(IB16("f365a5").inst), "REP MOVS WORD [ES:DI], [GS:SI]")
+		self.assertEqual(str(IB16("f36567a5").inst), "REP MOVS WORD [ES:EDI], [GS:ESI]")
+		self.assertEqual(str(IB16("f3656766a5").inst), "REP MOVS DWORD [ES:EDI], [GS:ESI]")
+		self.assertEqual(str(IB16("6667f365a5").inst), "REP MOVS DWORD [ES:EDI], [GS:ESI]")
+		self.assertEqual(str(IB16("6667f3a4").inst), "REP MOVS BYTE [ES:EDI], [DS:ESI]")
+		self.assertEqual(str(IB16("6667f2a4").inst), "REPNZ MOVS BYTE [ES:EDI], [DS:ESI]")
+		# 32 bits
+		self.assertEqual(str(IB32("a4").inst), "MOVSB")
+		self.assertEqual(str(IB32("66a5").inst), "MOVSW")
+		self.assertEqual(str(IB32("a5").inst), "MOVSD")
+		self.assertEqual(str(IB32("f3a5").inst), "REP MOVSD")
+		self.assertEqual(str(IB32("66f3a5").inst), "REP MOVSW")
+		self.assertEqual(str(IB32("f366a5").inst), "REP MOVSW")
+		self.assertEqual(str(IB32("f3a5").inst), "REP MOVSD")
+		self.assertEqual(str(IB32("f2a5").inst), "REPNZ MOVSD")
+		self.assertEqual(str(IB32("65a5").inst), "MOVS DWORD [ES:EDI], [GS:ESI]")
+		self.assertEqual(str(IB32("f365a5").inst), "REP MOVS DWORD [ES:EDI], [GS:ESI]")
+		self.assertEqual(str(IB32("f36567a5").inst), "REP MOVS DWORD [ES:DI], [GS:SI]")
+		self.assertEqual(str(IB32("f3656766a5").inst), "REP MOVS WORD [ES:DI], [GS:SI]")
+		self.assertEqual(str(IB32("6667f365a5").inst), "REP MOVS WORD [ES:DI], [GS:SI]")
+		self.assertEqual(str(IB32("6667f3a4").inst), "REP MOVS BYTE [ES:DI], [DS:SI]")
+		self.assertEqual(str(IB32("6667f2a4").inst), "REPNZ MOVS BYTE [ES:DI], [DS:SI]")
+		# 64 bits
+		self.assertEqual(str(IB64("a4").inst), "MOVSB")
+		self.assertEqual(str(IB64("66a5").inst), "MOVSW")
+		self.assertEqual(str(IB64("a5").inst), "MOVSD")
+		self.assertEqual(str(IB64("48a5").inst), "MOVSQ")
+		self.assertEqual(str(IB64("4fa5").inst), "MOVSQ") # Set all REX bits, still MOVSQ.
+		self.assertEqual(str(IB64("f3a5").inst), "REP MOVSD")
+		self.assertEqual(str(IB64("f348a5").inst), "REP MOVSQ")
+		self.assertEqual(str(IB64("f248a5").inst), "REPNZ MOVSQ")
+		self.assertEqual(str(IB64("66f3a5").inst), "REP MOVSW")
+		self.assertEqual(str(IB64("f366a5").inst), "REP MOVSW")
+		self.assertEqual(str(IB64("f3a5").inst), "REP MOVSD")
+		self.assertEqual(str(IB64("65a5").inst), "MOVS DWORD [RDI], [GS:RSI]")
+		self.assertEqual(str(IB64("6548a5").inst), "MOVS QWORD [RDI], [GS:RSI]")
+		self.assertEqual(str(IB64("f365a5").inst), "REP MOVS DWORD [RDI], [GS:RSI]")
+		self.assertEqual(str(IB64("f367a5").inst), "REP MOVS DWORD [EDI], [ESI]")
+		self.assertEqual(str(IB64("f3656766a5").inst), "REP MOVS WORD [EDI], [GS:ESI]")
+		self.assertEqual(str(IB64("6667f365a5").inst), "REP MOVS WORD [EDI], [GS:ESI]")
+		self.assertEqual(str(IB64("6667f36548a5").inst), "REP MOVS QWORD [EDI], [GS:ESI]")
+		self.assertEqual(str(IB64("6667f3a4").inst), "REP MOVS BYTE [EDI], [ESI]")
+	def test_cmps(self):
+		""" CMPS instruction is treated specially with certain prefixes, check all such cases. """
+		# 16 bits
+		self.assertEqual(str(IB16("a6").inst), "CMPSB")
+		self.assertEqual(str(IB16("66a7").inst), "CMPSD")
+		self.assertEqual(str(IB16("a7").inst), "CMPSW")
+		self.assertEqual(str(IB16("f3a7").inst), "REPZ CMPSW")
+		self.assertEqual(str(IB16("66f3a7").inst), "REPZ CMPSD")
+		self.assertEqual(str(IB16("f366a7").inst), "REPZ CMPSD")
+		self.assertEqual(str(IB16("f3a7").inst), "REPZ CMPSW")
+		self.assertEqual(str(IB16("65a7").inst), "CMPS WORD [GS:SI], [ES:DI]")
+		self.assertEqual(str(IB16("f365a7").inst), "REPZ CMPS WORD [GS:SI], [ES:DI]")
+		self.assertEqual(str(IB16("f36567a7").inst), "REPZ CMPS WORD [GS:ESI], [ES:EDI]")
+		self.assertEqual(str(IB16("f3656766a7").inst), "REPZ CMPS DWORD [GS:ESI], [ES:EDI]")
+		self.assertEqual(str(IB16("6667f365a7").inst), "REPZ CMPS DWORD [GS:ESI], [ES:EDI]")
+		self.assertEqual(str(IB16("6667f3a6").inst), "REPZ CMPS BYTE [DS:ESI], [ES:EDI]")
+		self.assertEqual(str(IB16("6667f2a6").inst), "REPNZ CMPS BYTE [DS:ESI], [ES:EDI]")
+		# 32 bits
+		self.assertEqual(str(IB32("a6").inst), "CMPSB")
+		self.assertEqual(str(IB32("66a7").inst), "CMPSW")
+		self.assertEqual(str(IB32("a7").inst), "CMPSD")
+		self.assertEqual(str(IB32("f3a7").inst), "REPZ CMPSD")
+		self.assertEqual(str(IB32("66f3a7").inst), "REPZ CMPSW")
+		self.assertEqual(str(IB32("f366a7").inst), "REPZ CMPSW")
+		self.assertEqual(str(IB32("f3a7").inst), "REPZ CMPSD")
+		self.assertEqual(str(IB32("f2a7").inst), "REPNZ CMPSD")
+		self.assertEqual(str(IB32("65a7").inst), "CMPS DWORD [GS:ESI], [ES:EDI]")
+		self.assertEqual(str(IB32("f365a7").inst), "REPZ CMPS DWORD [GS:ESI], [ES:EDI]")
+		self.assertEqual(str(IB32("f36567a7").inst), "REPZ CMPS DWORD [GS:SI], [ES:DI]")
+		self.assertEqual(str(IB32("f3656766a7").inst), "REPZ CMPS WORD [GS:SI], [ES:DI]")
+		self.assertEqual(str(IB32("6667f365a7").inst), "REPZ CMPS WORD [GS:SI], [ES:DI]")
+		self.assertEqual(str(IB32("6667f3a6").inst), "REPZ CMPS BYTE [DS:SI], [ES:DI]")
+		self.assertEqual(str(IB32("6667f2a6").inst), "REPNZ CMPS BYTE [DS:SI], [ES:DI]")
+		# 64 bits
+		self.assertEqual(str(IB64("a6").inst), "CMPSB")
+		self.assertEqual(str(IB64("66a7").inst), "CMPSW")
+		self.assertEqual(str(IB64("a7").inst), "CMPSD")
+		self.assertEqual(str(IB64("48a7").inst), "CMPSQ")
+		self.assertEqual(str(IB64("4fa7").inst), "CMPSQ") # Set all REX bits, still CMPSQ.
+		self.assertEqual(str(IB64("f3a7").inst), "REPZ CMPSD")
+		self.assertEqual(str(IB64("f348a7").inst), "REPZ CMPSQ")
+		self.assertEqual(str(IB64("f248a7").inst), "REPNZ CMPSQ")
+		self.assertEqual(str(IB64("66f3a7").inst), "REPZ CMPSW")
+		self.assertEqual(str(IB64("f366a7").inst), "REPZ CMPSW")
+		self.assertEqual(str(IB64("f3a7").inst), "REPZ CMPSD")
+		self.assertEqual(str(IB64("65a7").inst), "CMPS DWORD [GS:RSI], [RDI]")
+		self.assertEqual(str(IB64("6548a7").inst), "CMPS QWORD [GS:RSI], [RDI]")
+		self.assertEqual(str(IB64("f365a7").inst), "REPZ CMPS DWORD [GS:RSI], [RDI]")
+		self.assertEqual(str(IB64("f367a7").inst), "REPZ CMPS DWORD [ESI], [EDI]")
+		self.assertEqual(str(IB64("f3656766a7").inst), "REPZ CMPS WORD [GS:ESI], [EDI]")
+		self.assertEqual(str(IB64("6667f365a7").inst), "REPZ CMPS WORD [GS:ESI], [EDI]")
+		self.assertEqual(str(IB64("6667f36548a7").inst), "REPZ CMPS QWORD [GS:ESI], [EDI]")
+		self.assertEqual(str(IB64("6667f3a6").inst), "REPZ CMPS BYTE [ESI], [EDI]")
 	def test_segment_override(self):
 		self.assertEqual(I32("mov eax, [cs:eax]").inst.segment, Regs.CS)
 		self.assertEqual(I32("mov eax, [ds:eax]").inst.segment, Regs.DS)
