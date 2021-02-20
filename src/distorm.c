@@ -200,7 +200,11 @@ static uint8_t suffixTable[10] = { 0, 'B', 'W', 0, 'D', 0, 0, 0, 'Q' };
 				tmpDisp64 = -di->imm.sbyte;
 				str_int(&str, tmpDisp64);
 			}
-			else str_int(&str, di->imm.qword);
+			else {
+				/* Notice signedness and size of the immediate. */
+				if (di->ops[i].size == 0x20) str_int(&str, di->imm.dword);
+				else str_int(&str, di->imm.qword);
+			}
 		}
 		else if (type == O_PC) {
 #ifdef SUPPORT_64BIT_OFFSET
@@ -213,7 +217,7 @@ static uint8_t suffixTable[10] = { 0, 'B', 'W', 0, 'D', 0, 0, 0, 'Q' };
 		else if (type == O_DISP) {
 			distorm_format_size(&str, di, i);
 			chrcat_WS(str, OPEN_CHR);
-			if (!SEGMENT_IS_DEFAULT(di->segment)) {
+			if (!SEGMENT_IS_DEFAULT_OR_NONE(di->segment)) {
 				strcat_WSR(&str, &_REGISTERS[SEGMENT_GET_UNSAFE(di->segment)]);
 				chrcat_WS(str, SEG_OFF_CHR);
 			}
@@ -270,7 +274,7 @@ static uint8_t suffixTable[10] = { 0, 'B', 'W', 0, 'D', 0, 0, 0, 'Q' };
 		else if (type == O_MEM) {
 			distorm_format_size(&str, di, i);
 			chrcat_WS(str, OPEN_CHR);
-			if (!SEGMENT_IS_DEFAULT(di->segment)) {
+			if (!SEGMENT_IS_DEFAULT_OR_NONE(di->segment)) {
 				strcat_WSR(&str, &_REGISTERS[SEGMENT_GET_UNSAFE(di->segment)]);
 				chrcat_WS(str, SEG_OFF_CHR);
 			}
@@ -316,10 +320,10 @@ skipOperands:
 		/* In-place considerations: DI is RESULT. Deref fields first. */
 		unsigned int opcode = di->opcode;
 		unsigned int prefix = FLAG_GET_PREFIX(di->flags);
-		mnemonic = (const _WMnemonic*)&_MNEMONICS[opcode];
 		unsigned int size = di->size;
 		_OffsetType offset = di->addr & addrMask;
 		str = (unsigned char*)&result->mnemonic.p;
+		mnemonic = (const _WMnemonic*)&_MNEMONICS[opcode];
 
 		if (prefix) {
 			/* REP prefix for CMPS and SCAS is really a REPZ. */
